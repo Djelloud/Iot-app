@@ -1,0 +1,13 @@
+{
+  "name": "gti700-sensor-layer",
+  "version": "1.0.0",
+  "description": "Couche capteurs réutilisant le code Lab1",
+  "main": "sensor-reader.js",
+  "scripts": {
+    "start": "node sensor-reader.js",
+    "test": "node test-sensor.js"
+  },
+  "dependencies": {
+    "node-dht-sensor": "^0.4.3"
+  }
+}

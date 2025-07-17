@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTI700 Lab2 - Frontend Équipe 05</title>
+    <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #444;
+            margin-top: 40px;
+            margin-bottom: 15px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .color-cell {
+            min-width: 100px;
+            min-height: 40px;
+            /* transition: background-color 0.3s; */ /* disabled - causait du lag */
+        }
+        
+        .container {
+            max-width: 1180px; /* ajusté pour mon écran */
+            margin: 0 auto;
+            /* padding: 0 15px; */ /* causait des problèmes sur mobile */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GTI700 Lab2 - Frontend Équipe 05</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            Connexion en cours...
+        </div>
+
+        <h2>Mes capteurs</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Heure</th>
+                    <th>Température</th>
+                    <th>Humidité</th>
+                </tr>
+            </thead>
+            <tbody id="sensorData">
+                <tr>
+                    <td colspan="3">Aucune donnée disponible</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Système d'alerte</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Équipe</th>
+                    <th>Couleur</th>
+                </tr>
+            </thead>
+            <tbody id="alertData">
+                <!-- hardcoded teams list... pas optimal mais ça marche -->
+                <tr><td>1</td><td class="color-cell" id="team-1"></td></tr>
+                <tr><td>2</td><td class="color-cell" id="team-2"></td></tr>
+                <tr><td>3</td><td class="color-cell" id="team-3"></td></tr>
+                <tr><td>4</td><td class="color-cell" id="team-4"></td></tr>
+                <tr><td>5</td><td class="color-cell" id="team-5"></td></tr>
+                <tr><td>6</td><td class="color-cell" id="team-6"></td></tr>
+                <tr><td>7</td><td class="color-cell" id="team-7"></td></tr>
+                <tr><td>8</td><td class="color-cell" id="team-8"></td></tr>
+                <tr><td>9</td><td class="color-cell" id="team-9"></td></tr>
+                <tr><td>10</td><td class="color-cell" id="team-10"></td></tr>
+                <tr><td>11</td><td class="color-cell" id="team-11"></td></tr>
+                <tr><td>12</td><td class="color-cell" id="team-12"></td></tr>
+                <tr><td>13</td><td class="color-cell" id="team-13"></td></tr>
+                <tr><td>14</td><td class="color-cell" id="team-14"></td></tr>
+                <tr><td>15</td><td class="color-cell" id="team-15"></td></tr>
+                <tr><td>16</td><td class="color-cell" id="team-16"></td></tr>
+                <tr><td>17</td><td class="color-cell" id="team-17"></td></tr>
+                <tr><td>18</td><td class="color-cell" id="team-18"></td></tr>
+                <tr><td>19</td><td class="color-cell" id="team-19"></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // config MQTT
+        const CONFIG = {
+            local: {
+                host: '192.168.2.33',
+                port: 9001,
+                clientId: 'frontend_local_' + Math.random().toString(16).substr(2, 8),
+                // username: 'admin',  // pas besoin finalement
+                // password: 'admin'
+            },
+            hivemq: {
+                host: 'broker.hivemq.com',
+                port: 8000,
+                clientId: 'frontend_hivemq_' + Math.random().toString(16).substr(2, 8)
+            }
+        };
+
+        let localClient = null; // client pour le broker local
+        let hivemqClient = null; // broker public
+        let sensorHistory = [];
+        let connectionCount = 0;
+        let retryCount = 0; // TODO: implémenter retry logic
+
+        // DOM stuff
+        const status = document.getElementById('connectionStatus');
+        const tbody = document.getElementById('sensorData');
+
+        // init
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('starting mqtt connections...');
+            connectToBrokers();
+        });
+
+        function connectToBrokers() {
+            connectLocalBroker();
+            connectHiveMQBroker();
+        }
+
+        // Connexion broker local (capteurs)
+        function connectLocalBroker() {
+            const brokerUrl = `ws://${CONFIG.local.host}:${CONFIG.local.port}`;
+            console.log('trying local broker @', brokerUrl);
+            
+            // hack temporaire pour forcer la reconnexion
+            if (localClient) {
+                localClient.end(true);
+            }
+            
+            localClient = mqtt.connect(brokerUrl, {
+                clientId: CONFIG.local.clientId,
+                clean: true,
+                // keepalive: 60,   using default
+            });
+
+            localClient.on('connect', function() {
+                console.log('local broker OK!');
+                connectionCount++;
+                updateConnectionStatus();
+                
+                // Subscribe to all teams data
+                localClient.subscribe('GTI700/Data/E2025/+/temperature', { qos: 1 });
+                localClient.subscribe('GTI700/Data/E2025/+/humidite', { qos: 1 });
+            });
+
+            localClient.on('message', function(topic, message) {
+                handleSensorMessage(topic, message.toString());
+            });
+
+            localClient.on('error', function(err) {
+                console.error('Local broker fail:', err.message || err);
+                // TODO: retry with exponential backoff
+                connectionCount = Math.max(0, connectionCount - 1);
+                updateConnectionStatus();
+            });
+        }
+
+        // HiveMQ pour les alertes
+        function connectHiveMQBroker() {
+            const brokerUrl = `ws://${CONFIG.hivemq.host}:${CONFIG.hivemq.port}/mqtt`;
+            console.log('connecting to hivemq...');
+            
+            hivemqClient = mqtt.connect(brokerUrl, {
+                clientId: CONFIG.hivemq.clientId,
+                clean: true
+            });
+
+            hivemqClient.on('connect', function() {
+                console.log('✓ HiveMQ connected');
+                connectionCount++;
+                updateConnectionStatus();
+                
+                // sub to alerts
+                hivemqClient.subscribe('GTI700/Alerts/E2025/+', { qos: 1 });
+            });
+
+            hivemqClient.on('message', function(topic, message) {
+                handleAlertMessage(topic, message.toString());
+            });
+
+            hivemqClient.on('error', function(err) {
+                console.error('hivemq error ->', err);
+                updateConnectionStatus();
+            });
+        }
+
+        function handleSensorMessage(topic, message) {
+            const teamMatch = topic.match(/E2025\/(\d+)/);
+            const teamNumber = teamMatch ? teamMatch[1] : '??';
+            
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            
+            // debug
+            // console.log(`sensor msg from team ${teamNumber}: ${message}`);
+            
+            if (topic.includes('/temperature')) {
+                addSensorData(timeStr, parseFloat(message).toFixed(1) + '°C', null);
+            } else if (topic.includes('/humidite')) {
+                addSensorData(timeStr, null, parseFloat(message).toFixed(1) + '%');
+            }
+        }
+
+        function handleAlertMessage(topic, message) {
+            console.log(`alert: ${topic} -> ${message}`);
+            
+            const teamMatch = topic.match(/E2025\/(\d+)/);
+            const teamNumber = teamMatch ? teamMatch[1] : null;
+            
+            if (!teamNumber) {
+                console.log(`wtf, can't extract team from: ${topic}`);
+                return;
+            }
+            
+            const rgb = message.split(';');
+            
+            if (rgb.length === 3) {
+                const r = parseInt(rgb[0]);
+                const g = parseInt(rgb[1]);
+                const b = parseInt(rgb[2]);
+                
+                // validate RGB values
+                if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) {
+                    const color = `rgb(${r}, ${g}, ${b})`;
+                    const rgbText = `RGB(${r},${g},${b})`;
+                    updateTeamColor(teamNumber, color, rgbText);
+                } else {
+                    console.log(`bad RGB values: ${r},${g},${b}`);
+                }
+            } else {
+                console.log(`invalid format: ${message} (expected R;G;B)`);
+            }
+        }
+
+        /* 
+         * On essaie de merger temp et humidity si elles arrivent séparément
+         */
+        function addSensorData(time, temp, humidity) {
+            let existingEntry = null;
+            
+            // chercher dans les 3 dernières entrées
+            for (let i = 0; i < Math.min(3, sensorHistory.length); i++) {
+                const entry = sensorHistory[i];
+                
+                if (temp && entry.temperature === '--') {
+                    existingEntry = entry;
+                    break;
+                }
+                
+                if (humidity && entry.humidity === '--') {
+                    existingEntry = entry;
+                    break;
+                }
+            }
+            
+            if (existingEntry) {
+                // update existing
+                if (temp) existingEntry.temperature = temp;
+                if (humidity) existingEntry.humidity = humidity;
+                existingEntry.time = time; // use latest time
+                // console.log(`updated: T=${existingEntry.temperature}, H=${existingEntry.humidity}`);
+            } else {
+                // new entry
+                existingEntry = { 
+                    time, 
+                    temperature: temp || '--', 
+                    humidity: humidity || '--' 
+                };
+                sensorHistory.unshift(existingEntry);
+            }
+            sensorHistory = sensorHistory.slice(0, 15);
+            
+            updateSensorTable();
+        }
+
+        function updateSensorTable() {
+            if (sensorHistory.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3">Aucune donnée disponible</td></tr>';
+                return;
+            }
+            
+            // build table rows
+            tbody.innerHTML = sensorHistory.map(entry => `
+                <tr>
+                    <td>${entry.time}</td>
+                    <td>${entry.temperature}</td>
+                    <td>${entry.humidity}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateTeamColor(teamNumber, color, rgbText) {
+            // fix pour les numéros avec leading zeros (ex: "05" -> "5")
+            const teamNum = +teamNumber; // trick: unary + pour convertir
+            const cell = document.getElementById(`team-${teamNum}`);
+            
+            if (cell) {
+                cell.style.backgroundColor = color;
+                cell.textContent = rgbText;
+                
+                // adjust text color for readability
+                const [r, g, b] = color.match(/\d+/g).map(Number);
+                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                cell.style.color = brightness > 128 ? '#000' : '#fff';
+                cell.style.fontWeight = 'bold';
+                cell.style.fontSize = '12px';
+                
+                // console.log(`Team ${teamNum}: ${color}`);
+            } else {
+                console.error(`can't find team-${teamNum} element!`);
+            }
+        }
+
+        function updateConnectionStatus() {
+            if (connectionCount >= 2) {
+                status.className = 'status connected';
+                status.textContent = 'Connecté aux brokers MQTT';
+            } else {
+                status.className = 'status disconnected';
+                status.textContent = 'Connexion en cours...';
+            }
+        }
+
+        // Debug function - à enlever avant la remise
+        window.debugSensors = function() {
+            console.table(sensorHistory);
+        }
+    </script>
+</body>
+</html>

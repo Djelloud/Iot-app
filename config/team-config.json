@@ -1,0 +1,35 @@
+{
+  "teamNumber": "05",
+  "mqtt": {
+    "local": {
+      "host": "localhost",
+      "port": 1883,
+      "websocketPort": 9001
+    },
+    "hivemq": {
+      "host": "broker.hivemq.com",
+      "port": 1883,
+      "websocketPort": 8000
+    }
+  },
+  "topics": {
+    "temperature": "GTI700/Data/E2025/05/temperature",
+    "humidity": "GTI700/Data/E2025/05/humidite",
+    "alerts": "GTI700/Alerts/E2025/05"
+  },
+  "sensor": {
+    "type": 11,
+    "pin": 17,
+    "name": "Capteur DHT11",
+    "interval": 3000
+  },
+  "gpio": {
+    "redPin": 18,
+    "greenPin": 19,
+    "bluePin": 20
+  },
+  "logging": {
+    "level": "info",
+    "logToFile": true
+  }
+}

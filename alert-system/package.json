@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "mqtt": "^5.13.2"
+  },
+  "name": "alert-system",
+  "version": "1.0.0",
+  "main": "alert-subscriber.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

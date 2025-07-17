@@ -1,0 +1,19 @@
+{
+  "name": "gti700-mqtt-publisher",
+  "version": "1.0.0",
+  "description": "Publisher MQTT pour capteurs",
+  "main": "sensor-publisher.js",
+  "scripts": {
+    "start": "node sensor-publisher.js",
+    "dev": "nodemon sensor-publisher.js"
+  },
+  "dependencies": {
+    "mqtt": "^4.3.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
